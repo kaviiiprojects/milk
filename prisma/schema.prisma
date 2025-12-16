@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums derived from current app types
+enum UserRole {
+  admin
+  cashier
+}
+
+enum ProductCategory {
+  Yogurt
+  Drink
+  Ice_Cream
+  Dessert
+  Curd
+  Other
+}
+
+enum SaleType {
+  retail
+  wholesale
+}
+
+enum PaymentMethod {
+  Cash
+  Cheque
+  BankTransfer
+  ReturnCredit
+}
+
+enum StockTransactionType {
+  ADD_STOCK_INVENTORY
+  LOAD_TO_VEHICLE
+  UNLOAD_FROM_VEHICLE
+  REMOVE_STOCK_WASTAGE
+  STOCK_ADJUSTMENT_MANUAL
+  ISSUE_SAMPLE
+}
+
+enum SaleStatus {
+  completed
+  pending
+  cancelled
+}
+
+enum CustomerStatus {
+  active
+  pending
+}
+
+// Core entities
+model User {
+  id                       String   @id @default(uuid())
+  username                 String   @unique
+  name                     String
+  role                     UserRole
+  password_hashed_or_plain String?
+
+  sales                    Sale[]   @relation("SaleStaff")
+  payments                 Payment[]
+  stockTransactions        StockTransaction[]
+  expenses                 Expense[]
+  returnTransactions       ReturnTransaction[] @relation("ReturnStaff")
+}
+
+model Product {
+  id           String           @id @default(uuid())
+  name         String
+  category     ProductCategory
+  price        Decimal          @db.Decimal(12, 2)
+  wholesalePrice Decimal?       @db.Decimal(12, 2)
+  stock        Int              @default(0)
+  imageUrl     String?
+  description  String?
+  sku          String?         
+  reorderLevel Int?
+  aiHint       String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  saleItems    SaleItem[]
+  stockTransactions StockTransaction[]
+  returnItems   ReturnItem[]
+}
+
+model Customer {
+  id                   String          @id @default(uuid())
+  avatar               String?
+  name                 String
+  phone                String
+  address              String?
+  shopName             String?
+  status               CustomerStatus  @default(active)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  name_lowercase       String?
+  shopName_lowercase   String?
+
+  sales                Sale[]
+  returns              ReturnTransaction[]
+}
+
+model Vehicle {
+  id           String   @id @default(uuid())
+  vehicleNumber String  @unique
+  driverName   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales        Sale[]
+  stockTransactions StockTransaction[]
+  expenses     Expense[]
+}
+
+// Sales and related
+model Sale {
+  id                         String        @id // keep custom formatted id like "sale-MMDD-#"
+  customerId                 String?
+  customer                   Customer?     @relation(fields: [customerId], references: [id])
+  customerName               String?
+  customerShopName           String?
+
+  staffId                    String
+  staff                      User          @relation(name: "SaleStaff", fields: [staffId], references: [id])
+  staffName                  String?
+
+  vehicleId                  String?
+  vehicle                    Vehicle?      @relation(fields: [vehicleId], references: [id])
+
+  saleDate                   DateTime
+  subTotal                   Decimal       @db.Decimal(12, 2)
+  discountPercentage         Decimal       @default(0) @db.Decimal(5, 2)
+  discountAmount             Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount                Decimal       @db.Decimal(12, 2)
+
+  paidAmountCash             Decimal?      @db.Decimal(12, 2)
+  paidAmountCheque           Decimal?      @db.Decimal(12, 2)
+  paidAmountBankTransfer     Decimal?      @db.Decimal(12, 2)
+  creditUsed                 Decimal?      @db.Decimal(12, 2)
+  totalAmountPaid            Decimal       @default(0) @db.Decimal(12, 2)
+  outstandingBalance         Decimal       @default(0) @db.Decimal(12, 2)
+  initialOutstandingBalance  Decimal?      @db.Decimal(12, 2)
+  changeGiven                Decimal?      @db.Decimal(12, 2)
+  paymentSummary             String
+
+  offerApplied               Boolean       @default(false)
+  status                     SaleStatus    @default(completed)
+  cancellationReason         String?
+
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+
+  items                      SaleItem[]
+  payments                   Payment[]
+  returns                    ReturnTransaction[] @relation("SaleReturns")
+}
+
+model SaleItem {
+  id              String          @id @default(uuid())
+  saleId          String
+  sale            Sale            @relation(fields: [saleId], references: [id])
+  productId       String
+  product         Product         @relation(fields: [productId], references: [id])
+
+  quantity        Int
+  appliedPrice    Decimal         @db.Decimal(12, 2)
+  saleType        SaleType
+
+  // Denormalized product snapshot
+  name            String
+  category        ProductCategory
+  price           Decimal         @db.Decimal(12, 2)
+  sku             String?
+  imageUrl        String?
+
+  isOfferItem     Boolean         @default(false)
+  returnedQuantity Int?
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  saleId          String
+  sale            Sale          @relation(fields: [saleId], references: [id])
+  amount          Decimal       @db.Decimal(12, 2)
+  method          PaymentMethod
+  date            DateTime
+  notes           String?
+  staffId         String
+  staff           User          @relation(fields: [staffId], references: [id])
+
+  // Cheque details
+  chequeNumber    String?
+  chequeBank      String?
+  chequeDate      DateTime?
+  chequeAmount    Decimal?      @db.Decimal(12, 2)
+
+  // Bank transfer details
+  bankName        String?
+  referenceNumber String?
+  bankAmount      Decimal?      @db.Decimal(12, 2)
+}
+
+// Returns
+model ReturnTransaction {
+  id                      String     @id @default(uuid())
+  originalSaleId          String
+  originalSale            Sale       @relation(name: "SaleReturns", fields: [originalSaleId], references: [id])
+  returnDate              DateTime
+
+  staffId                 String
+  staff                   User       @relation(name: "ReturnStaff", fields: [staffId], references: [id])
+
+  customerId              String?
+  customer                Customer?  @relation(fields: [customerId], references: [id])
+  customerName            String?
+  customerShopName        String?
+
+  notes                   String?
+  amountPaid              Decimal?   @db.Decimal(12, 2)
+  paymentSummary          String?
+
+  // optional cheque details
+  chequeNumber            String?
+  chequeBank              String?
+  chequeDate              DateTime?
+  chequeAmount            Decimal?   @db.Decimal(12, 2)
+
+  // optional bank transfer details
+  bankName                String?
+  referenceNumber         String?
+  bankAmount              Decimal?   @db.Decimal(12, 2)
+
+  changeGiven             Decimal?   @db.Decimal(12, 2)
+  settleOutstandingAmount Decimal?   @db.Decimal(12, 2)
+  refundAmount            Decimal?   @db.Decimal(12, 2)
+  cashPaidOut             Decimal?   @db.Decimal(12, 2)
+
+  createdAt               DateTime   @default(now())
+
+  items                   ReturnItem[]
+}
+
+enum ReturnLineType {
+  returned
+  exchanged
+}
+
+model ReturnItem {
+  id              String           @id @default(uuid())
+  returnId        String
+  return          ReturnTransaction @relation(fields: [returnId], references: [id])
+  lineType        ReturnLineType
+
+  productId       String
+  product         Product          @relation(fields: [productId], references: [id])
+
+  quantity        Int
+  appliedPrice    Decimal          @db.Decimal(12, 2)
+  saleType        SaleType
+
+  // denormalized product snapshot
+  name            String
+  category        ProductCategory
+  price           Decimal          @db.Decimal(12, 2)
+  sku             String?
+  isOfferItem     Boolean          @default(false)
+}
+
+// Inventory movements
+model StockTransaction {
+  id             String               @id @default(uuid())
+  productId      String
+  product        Product              @relation(fields: [productId], references: [id])
+  productName    String
+  productSku     String?
+  type           StockTransactionType
+  quantity       Int
+  previousStock  Int
+  newStock       Int
+  transactionDate DateTime
+  notes          String?
+
+  vehicleId      String?
+  vehicle        Vehicle?             @relation(fields: [vehicleId], references: [id])
+
+  userId         String?
+  user           User?                @relation(fields: [userId], references: [id])
+
+  startMeter     Int?
+  endMeter       Int?
+
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+}
+
+// Operational and accounting
+model Expense {
+  id          String    @id @default(uuid())
+  category    String
+  description String?
+  amount      Decimal   @db.Decimal(12, 2)
+  expenseDate DateTime
+
+  staffId     String?
+  staff       User?     @relation(fields: [staffId], references: [id])
+
+  vehicleId   String?
+  vehicle     Vehicle?  @relation(fields: [vehicleId], references: [id])
+
+  createdAt   DateTime  @default(now())
+}
+
+// To emulate Firestore daily counters for custom Sale IDs if needed in migration/compat
+model DailySalesCounter {
+  id    String  @id // e.g., yyyy-MM-dd
+  count Int     @default(0)
+}
