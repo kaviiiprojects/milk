@@ -80,10 +80,6 @@ export function StockReportTable({ data, isLoading }: StockReportTableProps) {
               <Filter className="mr-2 h-4 w-4" />
               Adjust Filters
             </Button>
-            <Button>
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
           </div>
         </div>
       </div>
@@ -173,19 +169,6 @@ export function StockReportTable({ data, isLoading }: StockReportTableProps) {
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">Stock Transactions</h3>
         <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>CSV</DropdownMenuItem>
-              <DropdownMenuItem>Excel</DropdownMenuItem>
-              <DropdownMenuItem>PDF</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button variant="outline">
             <Filter className="h-4 w-4 mr-2" />
             Filter

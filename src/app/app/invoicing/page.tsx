@@ -17,8 +17,8 @@ export default function InvoicingPage() {
   const { currentUser } = useAuth();
   const router = useRouter();
   
-  // The hook now fetches all data at once.
-  const { sales, isLoading, error, refetchSales, hasMore, loadMoreSales } = useSalesData(true);
+  // Use pagination - fetch first 50 invoices, then load more on demand
+  const { sales, isLoading, error, refetchSales, hasMore, loadMoreSales } = useSalesData(false);
 
   useEffect(() => {
     if (currentUser === null) { 

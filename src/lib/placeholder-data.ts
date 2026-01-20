@@ -161,7 +161,7 @@ export function generatePlaceholderFullReportData(): FullReportEntry[] {
       });
     });
   });
-  return reportData.sort((a,b) => new Date(b.saleDate + 'T' + b.saleTime).getTime() - new Date(a.saleDate + 'T' + a.saleTime).getTime());
+  return reportData.sort((a, b) => new Date(b.saleDate + 'T' + b.saleTime).getTime() - new Date(a.saleDate + 'T' + a.saleTime).getTime());
 }
 
 export const placeholderFullReportData: FullReportEntry[] = generatePlaceholderFullReportData();
@@ -174,7 +174,7 @@ export const recentActivities: ActivityItem[] = [
   ...placeholderSales.slice(0, 2).map((sale, index): ActivityItem => ({
     id: `sale-${sale.id}`,
     type: "sale",
-    title: `Sale #${sale.id.slice(0,4)} to ${sale.customerName || 'Guest'}`,
+    title: `Sale #${sale.id.slice(0, 4)} to ${sale.customerName || 'Guest'}`,
     description: `${sale.items.length} items, Total: Rs. ${sale.totalAmount.toFixed(2)}`,
     timestamp: sale.saleDate,
     icon: ShoppingCart,

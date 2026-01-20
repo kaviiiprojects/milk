@@ -5,11 +5,10 @@ import { useState, useEffect, useCallback } from "react";
 import type { StockTransaction } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import type { DateRange } from "react-day-picker";
-import type { QueryDocumentSnapshot } from 'firebase/firestore';
 
 const PAGE_SIZE = 50;
 
-async function getStockTransactions(_lastVisible?: QueryDocumentSnapshot<StockTransaction>, _dateRange?: DateRange): Promise<{ transactions: StockTransaction[], lastVisible: QueryDocumentSnapshot<StockTransaction> | null }> {
+async function getStockTransactions(_lastVisible?: any, _dateRange?: DateRange): Promise<{ transactions: StockTransaction[], lastVisible: any | null }> {
   const res = await fetch('/api/stock-transactions');
   if (!res.ok) throw new Error('Failed to fetch stock transactions');
   const transactionsData = await res.json();
@@ -27,7 +26,7 @@ export function useStockTransactions(fetchAll: boolean = false, dateRange?: Date
   const [transactions, setTransactions] = useState<StockTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(fetchAll);
   const [error, setError] = useState<string | null>(null);
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<StockTransaction> | null>(null);
+  const [lastVisible, setLastVisible] = useState<any | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const { toast } = useToast();
 
@@ -54,7 +53,7 @@ export function useStockTransactions(fetchAll: boolean = false, dateRange?: Date
       setIsLoading(false);
     }
   }, [toast, dateRange]);
-  
+
   const loadMoreTransactions = useCallback(async () => {
     if (!hasMore || isLoading) return;
     setIsLoading(true);
@@ -79,11 +78,11 @@ export function useStockTransactions(fetchAll: boolean = false, dateRange?: Date
   }, [lastVisible, hasMore, isLoading, toast, dateRange]);
 
   useEffect(() => {
-    if(fetchAll){
-        fetchInitialTransactions();
+    if (fetchAll) {
+      fetchInitialTransactions();
     }
   }, [fetchAll, fetchInitialTransactions]);
-  
+
   useEffect(() => {
     fetchInitialTransactions();
   }, [dateRange, fetchInitialTransactions]);

@@ -2,7 +2,7 @@ import 'server-only';
 
 import prisma from "./prisma";
 import { format } from 'date-fns';
-import { 
+import {
   type Product,
   type Customer,
   type Sale,
@@ -96,9 +96,21 @@ export const deleteProduct = async (id: string): Promise<void> => {
 };
 
 // Customer Services (Prisma)
-export const getCustomers = async (): Promise<Customer[]> => {
-  const rows = await prisma.customer.findMany({ orderBy: { createdAt: 'desc' } });
-  return rows.map(c => ({
+export const getCustomers = async (limit?: number, cursor?: string | null): Promise<{ customers: Customer[], hasMore: boolean, nextCursor: string | null }> => {
+  const pageSize = limit || 50;
+
+  const rows = await prisma.customer.findMany({
+    take: pageSize + 1,
+    skip: cursor ? 1 : 0,
+    cursor: cursor ? { id: cursor } : undefined,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const hasMore = rows.length > pageSize;
+  const customerRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const nextCursor = hasMore && customerRows.length > 0 ? customerRows[customerRows.length - 1].id : null;
+
+  const customers = customerRows.map(c => ({
     id: c.id,
     avatar: c.avatar || undefined,
     name: c.name,
@@ -111,23 +123,27 @@ export const getCustomers = async (): Promise<Customer[]> => {
     name_lowercase: c.name_lowercase || undefined,
     shopName_lowercase: c.shopName_lowercase || undefined,
   }));
+
+  return { customers, hasMore, nextCursor };
 };
 
 export const getPaginatedCustomers = async (_lastVisible?: any): Promise<{ customers: Customer[], lastVisible: any | null }> => {
   const rows = await prisma.customer.findMany({ orderBy: { createdAt: 'desc' }, take: PAGE_SIZE });
-  return { customers: rows.map(c => ({
-    id: c.id,
-    avatar: c.avatar || undefined,
-    name: c.name,
-    phone: c.phone,
-    address: c.address || undefined,
-    shopName: c.shopName || undefined,
-    status: c.status as Customer["status"],
-    createdAt: c.createdAt || undefined,
-    updatedAt: c.updatedAt || undefined,
-    name_lowercase: c.name_lowercase || undefined,
-    shopName_lowercase: c.shopName_lowercase || undefined,
-  })), lastVisible: null };
+  return {
+    customers: rows.map(c => ({
+      id: c.id,
+      avatar: c.avatar || undefined,
+      name: c.name,
+      phone: c.phone,
+      address: c.address || undefined,
+      shopName: c.shopName || undefined,
+      status: c.status as Customer["status"],
+      createdAt: c.createdAt || undefined,
+      updatedAt: c.updatedAt || undefined,
+      name_lowercase: c.name_lowercase || undefined,
+      shopName_lowercase: c.shopName_lowercase || undefined,
+    })), lastVisible: null
+  };
 };
 
 export const getCustomer = async (id: string): Promise<Customer | null> => {
@@ -324,13 +340,14 @@ export const addSale = async (saleData: Omit<Sale, 'id'>): Promise<string> => {
   return newCustomId;
 };
 
-export const getSales = async (_lastVisible?: any, dateRange?: DateRange, staffId?: string): Promise<{ sales: Sale[], lastVisible: any | null }> => {
-  const where: any = {};
-  if (dateRange?.from) where.saleDate = { gte: dateRange.from, ...(dateRange?.to ? { lte: dateRange.to } : {}) };
-  if (staffId) where.staffId = staffId;
-  const rows = await prisma.sale.findMany({ 
-    where, 
-    include: { 
+export const getSales = async (limit?: number, cursor?: string | null): Promise<{ sales: Sale[], hasMore: boolean, nextCursor: string | null }> => {
+  const pageSize = limit || 50; // Default to 50 if no limit specified
+
+  const rows = await prisma.sale.findMany({
+    take: pageSize + 1,
+    skip: cursor ? 1 : 0,
+    cursor: cursor ? { id: cursor } : undefined,
+    include: {
       items: true,
       returns: {
         include: {
@@ -339,15 +356,19 @@ export const getSales = async (_lastVisible?: any, dateRange?: DateRange, staffI
       },
       payments: true
     },
-    orderBy: { saleDate: 'desc' }, 
-    take: dateRange ? PAGE_SIZE : undefined 
+    orderBy: { saleDate: 'desc' },
+
   });
-  
+
+  const hasMore = rows.length > pageSize;
+  const salesRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const nextCursor = hasMore && salesRows.length > 0 ? salesRows[salesRows.length - 1].id : null;
+
   // Calculate returnedQuantity for each sale item by aggregating return items
-  const sales: Sale[] = rows.map(s => {
+  const sales: Sale[] = salesRows.map(s => {
     // Create a map of (productId, saleType) -> total returned quantity
     const returnedQuantities = new Map<string, number>();
-    
+
     s.returns.forEach(returnTx => {
       returnTx.items.forEach(returnItem => {
         // Only count items with lineType 'returned' (not 'exchanged')
@@ -357,12 +378,12 @@ export const getSales = async (_lastVisible?: any, dateRange?: DateRange, staffI
         }
       });
     });
-    
+
     // Map sale items with calculated returnedQuantity
     const items: CartItem[] = s.items.map(item => {
       const key = `${item.productId}-${item.saleType}`;
       const returnedQty = returnedQuantities.get(key) || 0;
-      
+
       return {
         id: item.productId,
         quantity: item.quantity,
@@ -377,7 +398,7 @@ export const getSales = async (_lastVisible?: any, dateRange?: DateRange, staffI
         returnedQuantity: returnedQty > 0 ? returnedQty : undefined,
       };
     });
-    
+
     return {
       id: s.id,
       items,
@@ -427,20 +448,20 @@ export const getSales = async (_lastVisible?: any, dateRange?: DateRange, staffI
       cancellationReason: s.cancellationReason || undefined,
     };
   });
-  return { sales, lastVisible: null };
+  return { sales, hasMore, nextCursor };
 };
 
 export const getReturns = async (_lastVisible?: any, dateRange?: DateRange, staffId?: string): Promise<{ returns: ReturnTransaction[], lastVisible: any | null }> => {
   const where: any = {};
   if (dateRange?.from) where.returnDate = { gte: dateRange.from, ...(dateRange?.to ? { lte: dateRange.to } : {}) };
   if (staffId) where.staffId = staffId;
-  const rows = await prisma.returnTransaction.findMany({ 
-    where, 
+  const rows = await prisma.returnTransaction.findMany({
+    where,
     include: { items: true },
-    orderBy: { returnDate: 'desc' }, 
-    take: PAGE_SIZE 
+    orderBy: { returnDate: 'desc' },
+    take: PAGE_SIZE
   });
-  
+
   const returns: ReturnTransaction[] = rows.map(r => {
     // Separate returned and exchanged items
     const returnedItems: CartItem[] = r.items
@@ -456,7 +477,7 @@ export const getReturns = async (_lastVisible?: any, dateRange?: DateRange, staf
         sku: item.sku || undefined,
         isOfferItem: item.isOfferItem,
       }));
-    
+
     const exchangedItems: CartItem[] = r.items
       .filter(item => item.lineType === 'exchanged')
       .map(item => ({
@@ -470,7 +491,7 @@ export const getReturns = async (_lastVisible?: any, dateRange?: DateRange, staf
         sku: item.sku || undefined,
         isOfferItem: item.isOfferItem,
       }));
-    
+
     return {
       id: r.id,
       originalSaleId: r.originalSaleId,

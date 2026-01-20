@@ -3,13 +3,19 @@ export const runtime = 'nodejs';
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { addSale, getSales } from '@/lib/firestoreService';
-import type { Sale, CartItem, ChequeInfo, BankTransferInfo } from '@/lib/types'; 
+import type { Sale, CartItem, ChequeInfo, BankTransferInfo } from '@/lib/types';
 
-// GET /api/sales - Fetch all sales
+// GET /api/sales - Fetch sales with optional pagination
 export async function GET(request: NextRequest) {
   try {
-    const result = await getSales();
-    return NextResponse.json(result.sales);
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+    const cursor = searchParams.get('cursor'); // ID of last item from previous page
+
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    const result = await getSales(limit, cursor);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching sales:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -26,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (!saleDataFromClient || !Array.isArray(saleDataFromClient.items) || saleDataFromClient.items.length === 0) {
       return NextResponse.json({ error: 'Invalid sale data: Items are missing or empty.' }, { status: 400 });
     }
-    
+
     const requiredNumericFields = ['subTotal', 'discountAmount', 'totalAmount', 'totalAmountPaid', 'outstandingBalance'];
     for (const field of requiredNumericFields) {
       if (typeof saleDataFromClient[field] !== 'number') {
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest) {
     // --- End Validation ---
 
     const saleDate = saleDataFromClient.saleDate ? new Date(saleDataFromClient.saleDate) : new Date();
-    
+
     // --- Start Definitive Defensive Payload Construction ---
     const payload: Omit<Sale, 'id'> = {
       // These are now guaranteed to be present and of the correct type by validation above
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
       totalAmountPaid: saleDataFromClient.totalAmountPaid,
       outstandingBalance: saleDataFromClient.outstandingBalance,
       paymentSummary: saleDataFromClient.paymentSummary,
-      
+
       // These have safe defaults
       saleDate: saleDate,
       staffId: saleDataFromClient.staffId || "staff001",
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
       creditUsed: saleDataFromClient.creditUsed || undefined,
       changeGiven: saleDataFromClient.changeGiven || undefined,
     };
-    
+
     if (payload.outstandingBalance > 0) {
       payload.initialOutstandingBalance = payload.outstandingBalance;
     }
@@ -94,17 +100,17 @@ export async function POST(request: NextRequest) {
     // --- End Defensive Payload Construction ---
 
     const saleId = await addSale(payload);
-    
+
     return NextResponse.json({ id: saleId, ...payload, saleDate: saleDate.toISOString() }, { status: 201 });
 
   } catch (error) {
     console.error('Error processing sale:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     if (errorMessage.includes("not found for stock update")) {
-        return NextResponse.json({ error: 'Failed to process sale: Product not found for stock update.', details: errorMessage }, { status: 404 });
+      return NextResponse.json({ error: 'Failed to process sale: Product not found for stock update.', details: errorMessage }, { status: 404 });
     }
     if (errorMessage.includes("Insufficient stock")) {
-        return NextResponse.json({ error: 'Failed to process sale: Insufficient stock for one or more items.', details: errorMessage }, { status: 409 });
+      return NextResponse.json({ error: 'Failed to process sale: Insufficient stock for one or more items.', details: errorMessage }, { status: 409 });
     }
     return NextResponse.json({ error: 'Failed to process sale', details: errorMessage }, { status: 500 });
   }

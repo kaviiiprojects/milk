@@ -1,11 +1,11 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { 
-  getProducts, 
-  getProduct, 
-  addProduct, 
-  updateProduct, 
-  deleteProduct 
+import {
+  getProducts,
+  getProduct,
+  addProduct,
+  updateProduct,
+  deleteProduct
 } from '@/lib/firestoreService';
 import type { Product, FirestoreProduct } from '@/lib/types';
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const productData = (await request.json()) as Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
-    
+
     if (!productData || !productData.name || !productData.category || productData.price === undefined || productData.stock === undefined) {
       return NextResponse.json({ error: 'Missing required product fields (name, category, price, stock)' }, { status: 400 });
     }
@@ -63,10 +63,10 @@ export async function PUT(request: NextRequest) {
 
   try {
     const productUpdateData = (await request.json()) as Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>;
-    
+
     // Ensure no critical fields are empty if provided
-    if (productUpdateData.name === '' || productUpdateData.category === '' || (productUpdateData.price !== undefined && productUpdateData.price < 0) || (productUpdateData.stock !== undefined && productUpdateData.stock < 0)) {
-       return NextResponse.json({ error: 'Invalid data provided for update.' }, { status: 400 });
+    if (productUpdateData.name === '' || (productUpdateData.category as any) === '' || (productUpdateData.price !== undefined && productUpdateData.price < 0) || (productUpdateData.stock !== undefined && productUpdateData.stock < 0)) {
+      return NextResponse.json({ error: 'Invalid data provided for update.' }, { status: 400 });
     }
 
     await updateProduct(productId, productUpdateData);
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating product:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     if (errorMessage.includes("Failed to update product.") || errorMessage.includes("not found")) { // A bit generic, but helps distinguish
-        return NextResponse.json({ error: 'Product not found or failed to update', details: errorMessage }, { status: 404 });
+      return NextResponse.json({ error: 'Product not found or failed to update', details: errorMessage }, { status: 404 });
     }
     return NextResponse.json({ error: 'Failed to update product', details: errorMessage }, { status: 500 });
   }
@@ -96,8 +96,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Error deleting product:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-     if (errorMessage.includes("Failed to delete product.") || errorMessage.includes("not found")) {
-        return NextResponse.json({ error: 'Product not found or failed to delete', details: errorMessage }, { status: 404 });
+    if (errorMessage.includes("Failed to delete product.") || errorMessage.includes("not found")) {
+      return NextResponse.json({ error: 'Product not found or failed to delete', details: errorMessage }, { status: 404 });
     }
     return NextResponse.json({ error: 'Failed to delete product', details: errorMessage }, { status: 500 });
   }

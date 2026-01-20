@@ -1,12 +1,12 @@
 export const runtime = 'nodejs';
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { 
-  getCustomers, 
-  getCustomer, 
-  addCustomer, 
-  updateCustomer, 
-  deleteCustomer 
+import {
+  getCustomers,
+  getCustomer,
+  addCustomer,
+  updateCustomer,
+  deleteCustomer
 } from '@/lib/firestoreService'; // Assuming these functions will be in firestoreService
 import type { Customer, FirestoreCustomer } from '@/lib/types';
 
@@ -25,8 +25,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
       }
     } else {
-      const customers = await getCustomers();
-      return NextResponse.json(customers);
+      const limitParam = searchParams.get('limit');
+      const cursor = searchParams.get('cursor');
+
+      const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+      const result = await getCustomers(limit, cursor);
+      return NextResponse.json(result);
     }
   } catch (error) {
     console.error('Error fetching customer(s):', error);
@@ -39,15 +44,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const customerData = (await request.json()) as Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>;
-    
+
     if (!customerData || !customerData.name || !customerData.phone) {
       return NextResponse.json({ error: 'Missing required customer fields (name, phone)' }, { status: 400 });
     }
-    
+
     const customerToCreate = {
-        ...customerData,
-        name_lowercase: customerData.name.toLowerCase(),
-        shopName_lowercase: customerData.shopName?.toLowerCase(),
+      ...customerData,
+      name_lowercase: customerData.name.toLowerCase(),
+      shopName_lowercase: customerData.shopName?.toLowerCase(),
     };
 
     const customerId = await addCustomer(customerToCreate);
@@ -70,17 +75,17 @@ export async function PUT(request: NextRequest) {
 
   try {
     const customerUpdateData = (await request.json()) as Partial<Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>>;
-    
+
     if (customerUpdateData.name === '' || customerUpdateData.phone === '') {
-       return NextResponse.json({ error: 'Name and phone cannot be empty if provided for update.' }, { status: 400 });
+      return NextResponse.json({ error: 'Name and phone cannot be empty if provided for update.' }, { status: 400 });
     }
-    
+
     const dataToUpdate: Partial<Omit<Customer, 'id'>> = { ...customerUpdateData };
     if (customerUpdateData.name) {
-        dataToUpdate.name_lowercase = customerUpdateData.name.toLowerCase();
+      dataToUpdate.name_lowercase = customerUpdateData.name.toLowerCase();
     }
     if (customerUpdateData.shopName) {
-        dataToUpdate.shopName_lowercase = customerUpdateData.shopName.toLowerCase();
+      dataToUpdate.shopName_lowercase = customerUpdateData.shopName.toLowerCase();
     }
 
 
@@ -90,7 +95,7 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating customer:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     if (errorMessage.includes("Failed to update customer.") || errorMessage.includes("not found")) {
-        return NextResponse.json({ error: 'Customer not found or failed to update', details: errorMessage }, { status: 404 });
+      return NextResponse.json({ error: 'Customer not found or failed to update', details: errorMessage }, { status: 404 });
     }
     return NextResponse.json({ error: 'Failed to update customer', details: errorMessage }, { status: 500 });
   }
@@ -111,8 +116,8 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error('Error deleting customer:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-     if (errorMessage.includes("Failed to delete customer.") || errorMessage.includes("not found")) {
-        return NextResponse.json({ error: 'Customer not found or failed to delete', details: errorMessage }, { status: 404 });
+    if (errorMessage.includes("Failed to delete customer.") || errorMessage.includes("not found")) {
+      return NextResponse.json({ error: 'Customer not found or failed to delete', details: errorMessage }, { status: 404 });
     }
     return NextResponse.json({ error: 'Failed to delete customer', details: errorMessage }, { status: 500 });
   }

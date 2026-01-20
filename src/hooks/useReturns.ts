@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import type { ReturnTransaction } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import type { DateRange } from "react-day-picker";
-import type { QueryDocumentSnapshot } from "firebase/firestore";
 
 const PAGE_SIZE = 50;
 
@@ -13,9 +12,9 @@ export function useReturns(fetchAll: boolean = false, dateRange?: DateRange, sta
   const [returns, setReturns] = useState<ReturnTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(fetchAll);
   const [error, setError] = useState<string | null>(null);
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<ReturnTransaction> | null>(null);
+  const [lastVisible, setLastVisible] = useState<any | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  
+
   const { toast } = useToast();
 
   const fetchInitialReturns = useCallback(async () => {
@@ -44,10 +43,10 @@ export function useReturns(fetchAll: boolean = false, dateRange?: DateRange, sta
         description: errorMessage,
       });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }, [toast, dateRange, staffId]);
-  
+
   const loadMoreReturns = useCallback(async () => {
     if (!hasMore || isLoading) return;
     setIsLoading(true);
@@ -73,7 +72,7 @@ export function useReturns(fetchAll: boolean = false, dateRange?: DateRange, sta
         description: errorMessage,
       });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }, [lastVisible, hasMore, isLoading, toast, dateRange, staffId]);
 

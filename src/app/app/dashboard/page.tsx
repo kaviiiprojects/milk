@@ -40,7 +40,7 @@ export default function DashboardPage() {
   const { currentUser } = useAuth();
   const router = useRouter();
   
-  const { customers, isLoading: isLoadingCustomers, error: customersError } = useCustomers(true);
+  const { customers, isLoading: isLoadingCustomers, error: customersError } = useCustomers(false);
   
   const { 
     sales: allSales, 
@@ -264,7 +264,7 @@ export default function DashboardPage() {
     value: string | number,
     icon: LucideIcon,
     iconColor: string,
-    description?: React.ReactNode,
+    description?: string,
     trend?: number,
     additionalInfo?: string
   ) => {

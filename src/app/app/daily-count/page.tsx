@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { FileText, DownloadCloud, Banknote, ReceiptText, Wallet, Beaker, Building, CreditCard, ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { AccessDenied } from "@/components/AccessDenied";
 import { useRouter } from "next/navigation";
 import { GlobalPreloaderScreen } from "@/components/GlobalPreloaderScreen";
 import type { Sale, ReturnTransaction, Expense } from "@/lib/types";
-import { format, isSameDay, startOfDay, endOfDay } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useSalesData } from "@/hooks/useSalesData"; 
 import { useReturns } from "@/hooks/useReturns";
@@ -51,18 +51,10 @@ export default function DailyCountPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [reportSummary, setReportSummary] = useState<UserReportSummary | null>(null);
 
-  const dateRange = useMemo(() => {
-    if (!selectedDate) return undefined;
-    return { from: startOfDay(selectedDate), to: endOfDay(selectedDate) };
-  }, [selectedDate]);
-
-  // Fetch only the data needed for the current user and selected date
-  const { sales: salesToday, isLoading: isLoadingSales, error: salesError } = useSalesData(true, dateRange, currentUser?.username);
-  const { returns: returnsToday, isLoading: isLoadingReturns, error: returnsError } = useReturns(true, dateRange, currentUser?.username);
-  const { expenses: expensesTodayList, isLoading: isLoadingExpenses, error: expensesError } = useExpenses(true, dateRange, currentUser?.username);
-  
-  // Also fetch all sales to calculate credit payments made today
-  const { sales: allSales, isLoading: isLoadingAllSales, error: allSalesError } = useSalesData(true);
+  // Fetch all data - filtering will be done client-side
+  const { sales: allSales, isLoading: isLoadingSales, error: salesError } = useSalesData(true);
+  const { returns: allReturns, isLoading: isLoadingReturns, error: returnsError } = useReturns(true);
+  const { expenses: allExpenses, isLoading: isLoadingExpenses, error: expensesError } = useExpenses(true);
 
   useEffect(() => {
     if (!currentUser) {
@@ -71,8 +63,32 @@ export default function DailyCountPage() {
   }, [currentUser, router]);
 
   useEffect(() => {
-    // Data is now pre-filtered by the hooks, but we still need to process it
-    if (selectedDate && currentUser && !isLoadingSales && !isLoadingReturns && !isLoadingExpenses && !isLoadingAllSales) {
+    if (selectedDate && currentUser && !isLoadingSales && !isLoadingReturns && !isLoadingExpenses) {
+      
+      // Helper to check if a staffId matches the current user (checks both id and username)
+      const isCurrentUserStaff = (staffId: string | undefined) => {
+        if (!staffId) return false;
+        return staffId === currentUser.username || staffId === currentUser.id;
+      };
+
+      // Filter sales for the SELECTED DATE ONLY and by current user
+      const salesToday = allSales.filter(sale => 
+        isSameDay(new Date(sale.saleDate), selectedDate) && 
+        isCurrentUserStaff(sale.staffId) &&
+        sale.status !== 'cancelled'
+      );
+
+      // Filter returns for the SELECTED DATE ONLY and by current user
+      const returnsToday = allReturns.filter(ret => 
+        isSameDay(new Date(ret.returnDate), selectedDate) &&
+        isCurrentUserStaff(ret.staffId)
+      );
+
+      // Filter expenses for the SELECTED DATE ONLY and by current user
+      const expensesToday = allExpenses.filter(exp => 
+        isSameDay(new Date(exp.expenseDate), selectedDate) &&
+        isCurrentUserStaff(exp.staffId)
+      );
 
       let cashFromSales = 0;
       let chequeFromSales = 0;
@@ -88,10 +104,10 @@ export default function DailyCountPage() {
       let chequeFromCreditPayments = 0;
       let bankFromCreditPayments = 0;
 
-      // Check ALL sales for additional payments made by the current user today
+      // Check ALL sales for additional payments made BY THE CURRENT USER on the SELECTED DATE
       allSales.forEach(sale => {
           sale.additionalPayments?.forEach(p => {
-              if (p.staffId === currentUser.username && isSameDay(p.date, selectedDate)) {
+              if (isCurrentUserStaff(p.staffId) && isSameDay(new Date(p.date), selectedDate)) {
                   if (p.method === 'Cash') cashFromCreditPayments += p.amount;
                   if (p.method === 'Cheque') chequeFromCreditPayments += p.amount;
                   if (p.method === 'BankTransfer') bankFromCreditPayments += p.amount;
@@ -104,7 +120,7 @@ export default function DailyCountPage() {
       const totalBankTransferIn = bankFromSales + bankFromCreditPayments;
       
       const totalRefundsPaidOut = returnsToday.reduce((sum, r) => sum + (r.cashPaidOut || 0), 0);
-      const totalExpenses = expensesTodayList.reduce((sum, e) => sum + e.amount, 0);
+      const totalExpensesAmount = expensesToday.reduce((sum, e) => sum + e.amount, 0);
 
       setReportSummary({
         reportDate: selectedDate,
@@ -113,15 +129,15 @@ export default function DailyCountPage() {
         totalCashIn,
         totalChequeIn,
         totalBankTransferIn,
-        totalExpenses,
+        totalExpenses: totalExpensesAmount,
         totalRefundsPaidOut,
-        netCashInHand: totalCashIn - totalRefundsPaidOut - totalExpenses,
+        netCashInHand: totalCashIn - totalRefundsPaidOut - totalExpensesAmount,
       });
 
-    } else {
+    } else if (!selectedDate) {
       setReportSummary(null);
     }
-  }, [selectedDate, currentUser, salesToday, returnsToday, expensesTodayList, allSales, isLoadingSales, isLoadingReturns, isLoadingExpenses, isLoadingAllSales]);
+  }, [selectedDate, currentUser, allSales, allReturns, allExpenses, isLoadingSales, isLoadingReturns, isLoadingExpenses]);
 
   const reportActions = (
     <div className="flex flex-col sm:flex-row gap-2 items-center">
@@ -155,19 +171,19 @@ export default function DailyCountPage() {
     return <GlobalPreloaderScreen message="Loading..." />;
   }
   
-  const pageIsLoading = (isLoadingSales || isLoadingReturns || isLoadingExpenses || isLoadingAllSales) && !reportSummary;
+  const pageIsLoading = (isLoadingSales || isLoadingReturns || isLoadingExpenses) && !reportSummary;
 
   if (pageIsLoading) {
     return <GlobalPreloaderScreen message="Calculating daily count..." />
   }
   
-  const anyError = salesError || returnsError || expensesError || allSalesError;
+  const anyError = salesError || returnsError || expensesError;
 
   return (
     <>
       <PageHeader 
         title="My Daily Count" 
-        description={`A summary of your transactions for ${selectedDate ? format(selectedDate, "PPP") : "the selected date"}.`}
+        description={`Summary of your transactions for ${selectedDate ? format(selectedDate, "PPP") : "the selected date"}.`}
         icon={FileText}
         action={reportActions}
       />

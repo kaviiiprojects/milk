@@ -12,7 +12,8 @@ import { AccessDenied } from "@/components/AccessDenied";
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf-autotable';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { GlobalPreloaderScreen } from "@/components/GlobalPreloaderScreen";
 import { Input } from "@/components/ui/input";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; 
@@ -164,7 +165,7 @@ export default function FullReportPage() {
     to: new Date(),
   });
 
-  const { sales, isLoading: isLoadingSales, error: salesError, loadMoreSales, hasMore: hasMoreSales } = useSalesData(true, dateRange);
+  const { sales, isLoading: isLoadingSales, error: salesError, loadMoreSales, hasMore: hasMoreSales } = useSalesData(true);
   const { returns, isLoading: isLoadingReturns, error: returnsError, loadMoreReturns, hasMore: hasMoreReturns } = useReturns(true, dateRange);
   const { transactions: stockTransactions, isLoading: isLoadingStock, error: stockError, loadMoreTransactions, hasMore: hasMoreStock } = useStockTransactions(true, dateRange);
   const { products: allProducts, isLoading: isLoadingProducts, error: productsError } = useProducts();
@@ -443,8 +444,8 @@ export default function FullReportPage() {
                     if (hasMoreSales) loadMoreSales();
                     if (hasMoreReturns) loadMoreReturns();
                     if (hasMoreStock) loadMoreTransactions();
-                }} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                }} disabled={pageIsLoading}>
+                    {pageIsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                     Load More
                 </Button>
              </div>

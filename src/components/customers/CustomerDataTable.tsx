@@ -22,7 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Customer } from "@/lib/types";
 import { CustomerDialog } from "./CustomerDialog";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import {
@@ -57,7 +57,7 @@ export function CustomerDataTable() {
     loadMoreCustomers,
   } = useCustomers(true); // Use paginated fetching
   
-  const [isMounted, setIsMounted] = useState(false);
+
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
@@ -77,21 +77,19 @@ export function CustomerDataTable() {
   // Determines if the "Actions" column or dropdown should be visible at all
   const canPerformAnyAction = canEditCustomers || canDeleteCustomers || canActivateCustomers;
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
-  const handleOpenAddDialog = () => {
+
+  const handleOpenAddDialog = useCallback(() => {
     if (!canAddCustomers) return;
     setEditingCustomer(null);
     setIsCustomerDialogOpen(true);
-  };
+  }, [canAddCustomers]);
 
-  const handleOpenEditDialog = (customer: Customer) => {
+  const handleOpenEditDialog = useCallback((customer: Customer) => {
     if (!canEditCustomers) return;
     setEditingCustomer(customer);
     setIsCustomerDialogOpen(true);
-  };
+  }, [canEditCustomers]);
 
   const handleSaveCustomer = async (customerToSave: Customer) => {
     let result: Customer | null = null;
@@ -145,11 +143,11 @@ export function CustomerDataTable() {
     }
   };
 
-  const openDeleteConfirmation = (customer: Customer) => {
+  const openDeleteConfirmation = useCallback((customer: Customer) => {
     if (!canDeleteCustomers) return;
     setCustomerToDelete(customer);
     setIsDeleteAlertOpen(true);
-  };
+  }, [canDeleteCustomers]);
 
   const handleDeleteConfirmed = async () => {
     if (!canDeleteCustomers || !customerToDelete) return;
@@ -165,12 +163,12 @@ export function CustomerDataTable() {
     setCustomerToDelete(null);
   };
 
-  const handleCallCustomer = (customerName: string) => {
+  const handleCallCustomer = useCallback((customerName: string) => {
     toast({
       title: "Premium Feature Locked",
       description: `Direct calling ${customerName} is a Limidora premium feature. Please contact Limidora to enable this.`,
     });
-  };
+  }, [toast]);
 
   const filteredCustomers = useMemo(() => {
     return customers
@@ -185,9 +183,9 @@ export function CustomerDataTable() {
       });
   }, [customers, searchTerm, activeTab]);
 
-  const isLoading = !isMounted || (isLoadingCustomers && customers.length === 0);
+  const isLoading = isLoadingCustomers && customers.length === 0;
 
-  if (customersError && isMounted) {
+  if (customersError) {
     return (
       <Card className="shadow-none border-0">
         <CardHeader className="p-4 sm:p-6">
